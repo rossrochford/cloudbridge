@@ -825,7 +825,7 @@ class AzureInstanceService(BaseInstanceService):
               priority=BaseInstanceService.STANDARD_EVENT_PRIORITY)
     def create(self, label, image, vm_type, subnet,
                key_pair=None, vm_firewalls=None, user_data=None,
-               launch_config=None, **kwargs):
+               launch_config=None, public_ip=False, **kwargs):
         AzureInstance.assert_valid_resource_label(label)
         instance_name = AzureInstance._generate_name_from_label(label,
                                                                 "cb-ins")
@@ -854,15 +854,18 @@ class AzureInstanceService(BaseInstanceService):
         storage_profile = self._create_storage_profile(image, launch_config,
                                                        instance_name)
 
+        ip_config = {
+            'name': instance_name + '_ip_config',
+            'subnet': {'id': subnet_id}
+        }
+        if public_ip:
+            ip_config['public_ip_allocation_method'] = 'Dynamic'
+        else:
+            ip_config['private_ip_allocation_method'] = 'Dynamic'
+
         nic_params = {
             'location': self.provider.region_name,
-            'ip_configurations': [{
-                'name': instance_name + '_ip_config',
-                'private_ip_allocation_method': 'Dynamic',
-                'subnet': {
-                    'id': subnet_id
-                }
-            }]
+            'ip_configurations': [ip_config]
         }
 
         if vm_firewall_id:

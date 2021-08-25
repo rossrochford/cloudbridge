@@ -741,7 +741,7 @@ class AWSInstanceService(BaseInstanceService):
               priority=BaseInstanceService.STANDARD_EVENT_PRIORITY)
     def create(self, label, image, vm_type, subnet,
                key_pair=None, vm_firewalls=None, user_data=None,
-               launch_config=None, **kwargs):
+               launch_config=None, public_ip=False, **kwargs):
         AWSInstance.assert_valid_resource_label(label)
         image_id = image.id if isinstance(image, MachineImage) else image
         vm_size = vm_type.id if \
@@ -761,8 +761,7 @@ class AWSInstanceService(BaseInstanceService):
             self._resolve_launch_options(subnet, zone_name, vm_firewalls)
 
         placement = {'AvailabilityZone': zone_id} if zone_id else None
-        inst = self.svc.create(
-            'create_instances',
+        creation_kwargs = dict(
             ImageId=image_id,
             MinCount=1,
             MaxCount=1,
@@ -775,6 +774,16 @@ class AWSInstanceService(BaseInstanceService):
             SubnetId=subnet_id,
             IamInstanceProfile=kwargs.pop('iam_instance_profile', None)
         )
+        if public_ip:
+            creation_kwargs['NetworkInterfaces'] = [{
+                'DeviceIndex': 0,
+                'SubnetId': subnet.id,
+                'Groups': vm_firewall_ids or []
+                'AssociatePublicIpAddress': True
+            }]
+
+        inst = self.svc.create('create_instances', **creation_kwargs)
+
         if inst and len(inst) == 1:
             # Wait until the resource exists
             # pylint:disable=protected-access
